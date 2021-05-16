@@ -1,0 +1,55 @@
+---
+- name: Gather vmware host facts - Debug
+  hosts: all
+  gather_facts: no
+  vars:
+    - output_dir: /tmp
+    - filename: vmware_guest_facts.csv
+  tasks:
+  - name: Gather all registered virtual machines
+    vmware_vm_facts:
+      hostname: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      validate_certs: no
+    delegate_to: localhost
+    register: vmfacts
+
+  - debug:
+      msg: "{{ vmfacts }}"
+
+  - debug:
+      msg: "{{ item }}"
+    with_items: "{{ vmfacts }}"
+
+  - name: Gather vmware host facts
+    vmware_guest_facts:
+      hostname: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      name: "{{ item.key }}"
+      datacenter: ha-datacenter
+      validate_certs: no
+    register: guest_facts
+    loop: "{{ vmfacts.virtual_machines | dictsort }}"
+    delegate_to: localhost
+
+  - debug:
+      msg: "{{ guest_facts }}"
+      #msg: '{{ inventory_hostname }} - Server: {{ host_facts.ansible_facts.ansible_product_name }} Free space: {{ host_facts.ansible_facts.ansible_datastore.0.free }}'
+
+  - name: "Write Headers {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "Hostname,IP Address,OS,VMWare Version,VMWare Build,Total Mem MB,Free Mem MB,CPU,CPU Cores,Processor Count,vCPUs,Vendor,Model,Serial,Total Disk,Free Disk"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhost
+
+  - name: "Write Host Facts {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "{{ inventory_hostname }},{{ ansible_host }},{{ ansible_distribution }},{{ ansible_distribution_version }},{{ ansible_distribution_build }},{{ ansible_memtotal_mb }},{{ ansible_memfree_mb }},{{ ansible_processor }},{{ ansible_processor_cores }},{{ ansible_processor_count }},{{ ansible_processor_vcpus }},{{ ansible_system_vendor }},{{ ansible_product_name }},{{ ansible_product_serial }},{{ host_facts.ansible_facts.ansible_datastore.0.total }},{{ host_facts.ansible_facts.ansible_datastore.0.free }}"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhos

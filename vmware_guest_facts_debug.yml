@@ -1,0 +1,36 @@
+---
+- name: Gather vmware host facts - Debug
+  hosts: all
+  gather_facts: no
+  tasks:
+  - name: Gather all registered virtual machines
+    vmware_vm_facts:
+      hostname: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      validate_certs: no
+    delegate_to: localhost
+    register: vmfacts
+
+  - debug:
+      msg: "{{ vmfacts }}"
+
+  - debug:
+      msg: "{{ item }}"
+    with_items: "{{ vmfacts }}"
+
+  - name: Gather vmware host facts
+    vmware_guest_facts:
+      hostname: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      name: "{{ item.key }}"
+      datacenter: ha-datacenter
+      validate_certs: no
+    register: guest_facts
+    loop: "{{ vmfacts.virtual_machines | dictsort }}"
+    delegate_to: localhost
+
+  - debug:
+      msg: "{{ guest_facts }}"
+      #msg: '{{ inventory_hostname }} - Server: {{ host_facts.ansible_facts.ansible_product_name }} Free space: {{ host_facts.ansible_facts.ansible_datastore.0.free }}'

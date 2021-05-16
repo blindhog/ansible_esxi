@@ -1,0 +1,73 @@
+---
+- name: check vmware disk usage
+  hosts: all
+  gather_facts: no
+  vars:
+    - dest_file: "/tmp/vmware-vm-list.csv"
+    - mail_host: smtp.mailgun.org
+    - mail_port: 25
+    - mail_username: postmaster@adalea.io
+    - mail_password: P4ssw0rd
+    - mail_to: user@domain.com
+    - mail_from: awx@adalea.io
+    - mail_subject: "VMWare Hosts Facts"
+    - mail_body: "Body"
+  tasks:
+    - name: Gather all registered virtual machines
+      vmware_vm_facts:
+        hostname: "{{ ansible_host }}"
+        username: "{{ ansible_ssh_user }}"
+        password: "{{ ansible_ssh_pass }}"
+        validate_certs: no
+      delegate_to: localhost
+      register: vmfacts
+
+    - debug:
+        var: vmfacts
+
+    - name: Debug Dictionary
+      debug:
+        msg: "{{ item }}"
+      with_items: "{{ vmfacts.virtual_machines | dict2items }}"
+
+    - name: "Write CSV report for {{ inventory_hostname }} to {{ dest_file }}"
+      lineinfile:
+        line: "{{ inventory_hostname }},{{ item.key }},{{ item.value.power_state }},{{ item.value.ip_address }}, {{ item.value.mac_address | replace(',','') }}, {{ item.value.guest_fullname }},{{ item.value.vm_network | replace(',','') }}, {{ item.value.cluster }}, {{ item.value.esxi_hostname }}, {{ item.value.uuid }}"
+        path: "{{ dest_file }}"
+        create: yes
+      delegate_to: localhost
+      with_items: "{{ vmfacts.virtual_machines | dict2items }}"
+
+    - name: "Add header to vm facts file"
+      lineinfile:
+        line: "VM Host,VM Name,Power State,IP Address, Mac Address, Guest Full Name, VM Network, Cluster, ESXi Hostname, UUID"
+        path: "{{ dest_file }}"
+        insertbefore: BOF
+      delegate_to: localhost
+      run_once: yes
+
+
+    - name: Email results
+      mail:
+        host: "{{ mail_host }}"
+        port: "{{ mail_port }}"
+        username: "{{ mail_username }}"
+        password: "{{ mail_password }}"
+        to: "{{ mail_to }}"
+        from: "{{ mail_from }}"
+        subject: "{{ mail_subject }}"
+        body: "{{ mail_body }}"
+        attach:
+          - "{{ dest_file }}"
+      delegate_to: localhost
+      run_once: yes
+  
+    - name: Delete the report after email
+      file:
+        path: "{{ dest_file }}"
+        state: absent
+      delegate_to: localhost
+      run_once: yes
+
+      
+

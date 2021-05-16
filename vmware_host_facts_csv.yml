@@ -1,0 +1,65 @@
+---
+- name: Create vmware host facts csv file
+  hosts: all
+  gather_facts: no
+  vars:
+    - output_dir: /tmp
+    - filename: vmware_host_facts.csv
+    - mail_host: smtp.mailgun.org
+    - mail_port: 25
+    - mail_username: postmaster@adalea.io
+    - mail_password: P4ssw0rd
+    - mail_to: user@domain.com
+    - mail_from: awx@adalea.io
+    - mail_subject: "VMWare Hosts Facts"
+    - mail_body: "Body"
+  tasks:
+  - name: Gather vmware host facts
+    vmware_host_facts:
+      hostname: "{{ ansible_host }}"
+      username: "{{ ansible_user }}"
+      password: "{{ ansible_ssh_pass }}"
+      validate_certs: no
+    register: host_facts
+    delegate_to: localhost
+
+  - debug:
+      msg: '{{ host_facts }}'
+
+  - name: "Write Headers {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "Hostname,IP Address,OS,VMWare Version,VMWare Build,Total Mem MB,Free Mem MB,CPU,CPU Cores,Processor Count,vCPUs,Vendor,Model,Serial,Total Disk,Free Disk"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhost
+
+  - name: "Write Host Facts {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "{{ inventory_hostname }},{{ ansible_host }},{{ ansible_distribution }},{{ ansible_distribution_version }},{{ ansible_distribution_build }},{{ ansible_memtotal_mb }},{{ ansible_memfree_mb }},{{ ansible_processor }},{{ ansible_processor_cores }},{{ ansible_processor_count }},{{ ansible_processor_vcpus }},{{ ansible_system_vendor }},{{ ansible_product_name }},{{ ansible_product_serial }},{{ host_facts.ansible_facts.ansible_datastore.0.total }},{{ host_facts.ansible_facts.ansible_datastore.0.free }}"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhost
+
+  - name: Email results
+    mail:
+      host: "{{ mail_host }}"
+      port: "{{ mail_port }}"
+      username: "{{ mail_username }}"
+      password: "{{ mail_password }}"
+      to: "{{ mail_to }}"
+      from: "{{ mail_from }}"
+      subject: "{{ mail_subject }}"
+      body: "{{ mail_body }}"
+      attach:
+        - "{{ output_dir }}/{{ filename }}"
+    delegate_to: localhost
+    run_once: yes
+
+  - name: Delete the report after email
+    file:
+      path: "{{ output_dir }}/{{ filename }}"
+      state: absent
+    delegate_to: localhost
+    run_once: yes

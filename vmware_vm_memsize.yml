@@ -1,0 +1,67 @@
+---
+- name: Create vmware host facts csv file
+  hosts: all
+  gather_facts: no
+  serial: 1
+  vars:
+    - output_dir: /tmp
+    - filename: vmware_vm_ram.csv
+    - mail_host: smtp.mailgun.org
+    - mail_port: 25
+    - mail_username: postmaster@adalea.io
+    - mail_password: P4ssw0rd
+    - mail_to: user@domain.com
+    - mail_from: awx@adalea.io
+    - mail_subject: "VMWare Hosts Facts"
+    - mail_body: "Body"
+    - shell_command: /bin/grep -i memsize /vmfs/volumes/datastore1/*/*.vmx
+
+  tasks:
+
+  - name: Identify configured RAM for VMs
+    shell: "{{ shell_command }}"
+    register: memsize
+
+  - name: Debug output
+    debug:
+      msg: "{{ memsize }}"
+
+
+  - name: "Write Headers {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "Host,VM,RAM"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhost
+
+  - name: "Write Host Facts {{ output_dir }}/{{ filename }}"
+    lineinfile:
+      line: "{{ inventory_hostname }},{{ item|regex_replace('^.*/(.*)$','\\1')|regex_replace('.vmx:mem[Ss]ize = ',',') }}"
+      dest: "{{ output_dir }}/{{ filename }}"
+      state: present
+      create: yes
+    delegate_to: localhost
+    with_items: "{{ memsize.stdout_lines }}"
+
+  - name: Email results
+    mail:
+      host: "{{ mail_host }}"
+      port: "{{ mail_port }}"
+      username: "{{ mail_username }}"
+      password: "{{ mail_password }}"
+      to: "{{ mail_to }}"
+      from: "{{ mail_from }}"
+      subject: "{{ mail_subject }}"
+      body: "{{ mail_body }}"
+      attach:
+        - "{{ output_dir }}/{{ filename }}"
+    delegate_to: localhost
+    run_once: yes
+
+  - name: Delete the report after email
+    file:
+      path: "{{ output_dir }}/{{ filename }}"
+      state: absent
+    delegate_to: localhost
+    run_once: yes
