@@ -1,0 +1,12 @@
+---
+- name: debug vmware disk usage
+  hosts: all
+  gather_facts: no
+  tasks:
+  - name: run df command
+    shell:
+      cmds:
+      - df
+    register: disk_usage
+  - debug:
+      var: disk_usage

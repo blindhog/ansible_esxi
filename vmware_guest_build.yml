@@ -1,0 +1,38 @@
+---
+- name: Create a virtual machine on ESXi Host
+  hosts: localhost
+  gather_facts: no
+  vars:
+  tasks:
+  - name: Create a virtual machine on ESXi Host
+    vmware_guest:
+      hostname: "{{ esxi_hostname }}"
+      username: "{{ esxi_username }}"
+      password: "{{ esxi_password }}"
+      validate_certs: no
+      folder: /
+      name: "{{ vm_name }}"
+      state: poweredon
+      guest_id: centos64Guest
+      # This is hostname of particular ESXi server on which user wants VM to be deployed
+      # esxi_hostname: "{{ esxi_hostname }}"
+      disk:
+      - size_gb: "{{ hd_size_gb }}"
+        type: thin
+        datastore: datastore1
+      hardware:
+        memory_mb: "{{ ram_mb }}"
+        num_cpus: "{{ num_cpus }}"
+        scsi: paravirtual
+      cdrom:
+        type: iso
+        iso_path: "[NASBackup]/ISOs/CentOS-6.9-x86_64-minimal.iso"
+      networks:
+      - name: VM Network
+        #mac: aa:bb:dd:aa:00:14
+        #ip: "{{ vm_ip_address }}"
+        #netmask: "{{ vm_subnet_mask }}"
+        device_type: vmxnet3
+      wait_for_ip_address: no
+    delegate_to: localhost
+    register: deploy_vm
